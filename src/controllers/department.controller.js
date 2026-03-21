@@ -1,5 +1,33 @@
 const Department = require("../modules/department.model");
 
+const parseBoolean = (value) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
+  }
+  return Boolean(value);
+};
+
+const normalizeNonNegativeNumber = (value) => {
+  const num = Number(value);
+  return Number.isNaN(num) || num < 0 ? null : num;
+};
+
+const normalizeWorkDays = (workDays) => {
+  if (!Array.isArray(workDays) || workDays.length === 0) return null;
+
+  const normalized = workDays.map((day) => Number(day));
+  const isValid = normalized.every(
+    (day) => Number.isInteger(day) && day >= 0 && day <= 6,
+  );
+
+  if (!isValid) return null;
+
+  return [...new Set(normalized)].sort((a, b) => a - b);
+};
+
 exports.createDepartment = async (req, res) => {
   try {
     const {
@@ -27,7 +55,10 @@ exports.createDepartment = async (req, res) => {
       });
     }
 
-    if (defaultSalary !== undefined && (Number.isNaN(Number(defaultSalary)) || Number(defaultSalary) < 0)) {
+    if (
+      defaultSalary !== undefined &&
+      normalizeNonNegativeNumber(defaultSalary) === null
+    ) {
       return res.status(400).json({
         success: false,
         message: "defaultSalary noto'g'ri (0 yoki undan katta bo'lishi kerak)",
@@ -35,9 +66,28 @@ exports.createDepartment = async (req, res) => {
     }
 
     if (
+      lateAfterMinutes !== undefined &&
+      normalizeNonNegativeNumber(lateAfterMinutes) === null
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "lateAfterMinutes noto'g'ri (0 yoki undan katta bo'lishi kerak)",
+      });
+    }
+
+    if (
+      earlyLeaveMinutes !== undefined &&
+      normalizeNonNegativeNumber(earlyLeaveMinutes) === null
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "earlyLeaveMinutes noto'g'ri (0 yoki undan katta bo'lishi kerak)",
+      });
+    }
+
+    if (
       latePenaltyPerMinute !== undefined &&
-      (Number.isNaN(Number(latePenaltyPerMinute)) ||
-        Number(latePenaltyPerMinute) < 0)
+      normalizeNonNegativeNumber(latePenaltyPerMinute) === null
     ) {
       return res.status(400).json({
         success: false,
@@ -47,8 +97,7 @@ exports.createDepartment = async (req, res) => {
 
     if (
       earlyLeavePenaltyPerMinute !== undefined &&
-      (Number.isNaN(Number(earlyLeavePenaltyPerMinute)) ||
-        Number(earlyLeavePenaltyPerMinute) < 0)
+      normalizeNonNegativeNumber(earlyLeavePenaltyPerMinute) === null
     ) {
       return res.status(400).json({
         success: false,
@@ -59,7 +108,7 @@ exports.createDepartment = async (req, res) => {
 
     if (
       penaltyPerMinute !== undefined &&
-      (Number.isNaN(Number(penaltyPerMinute)) || Number(penaltyPerMinute) < 0)
+      normalizeNonNegativeNumber(penaltyPerMinute) === null
     ) {
       return res.status(400).json({
         success: false,
@@ -68,11 +117,8 @@ exports.createDepartment = async (req, res) => {
     }
 
     if (workDays !== undefined) {
-      const ok =
-        Array.isArray(workDays) &&
-        workDays.length > 0 &&
-        workDays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6);
-      if (!ok) {
+      const normalizedWorkDays = normalizeWorkDays(workDays);
+      if (!normalizedWorkDays) {
         return res.status(400).json({
           success: false,
           message: "workDays noto'g'ri. Misol: [1,2,3,4,5,6]",
@@ -85,21 +131,37 @@ exports.createDepartment = async (req, res) => {
       name,
       checkInTime,
       checkOutTime,
-      lateAfterMinutes: lateAfterMinutes || 0,
-      earlyLeaveMinutes: earlyLeaveMinutes || 0,
-      useLatePenalty: useLatePenalty !== undefined ? Boolean(useLatePenalty) : false,
+      lateAfterMinutes:
+        lateAfterMinutes !== undefined
+          ? normalizeNonNegativeNumber(lateAfterMinutes)
+          : 0,
+      earlyLeaveMinutes:
+        earlyLeaveMinutes !== undefined
+          ? normalizeNonNegativeNumber(earlyLeaveMinutes)
+          : 0,
+      useLatePenalty:
+        useLatePenalty !== undefined ? parseBoolean(useLatePenalty) : false,
       useEarlyLeavePenalty:
-        useEarlyLeavePenalty !== undefined ? Boolean(useEarlyLeavePenalty) : false,
+        useEarlyLeavePenalty !== undefined
+          ? parseBoolean(useEarlyLeavePenalty)
+          : false,
       latePenaltyPerMinute:
-        latePenaltyPerMinute !== undefined ? Number(latePenaltyPerMinute) : 0,
+        latePenaltyPerMinute !== undefined
+          ? normalizeNonNegativeNumber(latePenaltyPerMinute)
+          : 0,
       earlyLeavePenaltyPerMinute:
         earlyLeavePenaltyPerMinute !== undefined
-          ? Number(earlyLeavePenaltyPerMinute)
+          ? normalizeNonNegativeNumber(earlyLeavePenaltyPerMinute)
           : 0,
-      useTimePenalty: useTimePenalty !== undefined ? Boolean(useTimePenalty) : false,
-      penaltyPerMinute: penaltyPerMinute !== undefined ? Number(penaltyPerMinute) : 0,
-      defaultSalary: defaultSalary !== undefined ? Number(defaultSalary) : 0,
-      workDays: workDays !== undefined ? workDays : undefined,
+      useTimePenalty:
+        useTimePenalty !== undefined ? parseBoolean(useTimePenalty) : false,
+      penaltyPerMinute:
+        penaltyPerMinute !== undefined
+          ? normalizeNonNegativeNumber(penaltyPerMinute)
+          : 0,
+      defaultSalary:
+        defaultSalary !== undefined ? normalizeNonNegativeNumber(defaultSalary) : 0,
+      workDays: workDays !== undefined ? normalizeWorkDays(workDays) : undefined,
     });
 
     return res.status(201).json({
@@ -247,8 +309,7 @@ exports.updateDepartment = async (req, res) => {
 
     if (
       req.body.defaultSalary !== undefined &&
-      (Number.isNaN(Number(req.body.defaultSalary)) ||
-        Number(req.body.defaultSalary) < 0)
+      normalizeNonNegativeNumber(req.body.defaultSalary) === null
     ) {
       return res.status(400).json({
         success: false,
@@ -257,9 +318,28 @@ exports.updateDepartment = async (req, res) => {
     }
 
     if (
+      req.body.lateAfterMinutes !== undefined &&
+      normalizeNonNegativeNumber(req.body.lateAfterMinutes) === null
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "lateAfterMinutes noto'g'ri (0 yoki undan katta bo'lishi kerak)",
+      });
+    }
+
+    if (
+      req.body.earlyLeaveMinutes !== undefined &&
+      normalizeNonNegativeNumber(req.body.earlyLeaveMinutes) === null
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "earlyLeaveMinutes noto'g'ri (0 yoki undan katta bo'lishi kerak)",
+      });
+    }
+
+    if (
       req.body.latePenaltyPerMinute !== undefined &&
-      (Number.isNaN(Number(req.body.latePenaltyPerMinute)) ||
-        Number(req.body.latePenaltyPerMinute) < 0)
+      normalizeNonNegativeNumber(req.body.latePenaltyPerMinute) === null
     ) {
       return res.status(400).json({
         success: false,
@@ -269,8 +349,7 @@ exports.updateDepartment = async (req, res) => {
 
     if (
       req.body.earlyLeavePenaltyPerMinute !== undefined &&
-      (Number.isNaN(Number(req.body.earlyLeavePenaltyPerMinute)) ||
-        Number(req.body.earlyLeavePenaltyPerMinute) < 0)
+      normalizeNonNegativeNumber(req.body.earlyLeavePenaltyPerMinute) === null
     ) {
       return res.status(400).json({
         success: false,
@@ -281,8 +360,7 @@ exports.updateDepartment = async (req, res) => {
 
     if (
       req.body.penaltyPerMinute !== undefined &&
-      (Number.isNaN(Number(req.body.penaltyPerMinute)) ||
-        Number(req.body.penaltyPerMinute) < 0)
+      normalizeNonNegativeNumber(req.body.penaltyPerMinute) === null
     ) {
       return res.status(400).json({
         success: false,
@@ -291,13 +369,8 @@ exports.updateDepartment = async (req, res) => {
     }
 
     if (req.body.workDays !== undefined) {
-      const ok =
-        Array.isArray(req.body.workDays) &&
-        req.body.workDays.length > 0 &&
-        req.body.workDays.every(
-          (d) => Number.isInteger(d) && d >= 0 && d <= 6,
-        );
-      if (!ok) {
+      const normalizedWorkDays = normalizeWorkDays(req.body.workDays);
+      if (!normalizedWorkDays) {
         return res.status(400).json({
           success: false,
           message: "workDays noto'g'ri. Misol: [1,2,3,4,5,6]",
@@ -310,10 +383,18 @@ exports.updateDepartment = async (req, res) => {
       if (req.body[field] !== undefined) {
         department[field] =
           field === "defaultSalary" ||
+          field === "lateAfterMinutes" ||
+          field === "earlyLeaveMinutes" ||
           field === "latePenaltyPerMinute" ||
           field === "earlyLeavePenaltyPerMinute" ||
           field === "penaltyPerMinute"
-            ? Number(req.body[field])
+            ? normalizeNonNegativeNumber(req.body[field])
+            : field === "useLatePenalty" ||
+                field === "useEarlyLeavePenalty" ||
+                field === "useTimePenalty"
+              ? parseBoolean(req.body[field])
+              : field === "workDays"
+                ? normalizeWorkDays(req.body[field])
             : req.body[field];
       }
     });
