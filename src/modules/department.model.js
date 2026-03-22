@@ -11,14 +11,26 @@ const normalizeWorkDays = (value) => {
 
   const normalized = values.map((day) => Number(day));
 
-  if (
-    normalized.length === 0 ||
-    normalized.some((day) => !Number.isInteger(day) || day < 0 || day > 6)
-  ) {
+  if (normalized.length === 0) {
     return value;
   }
 
-  return [...new Set(normalized)].sort((a, b) => a - b);
+  const isZeroBased = normalized.every(
+    (day) => Number.isInteger(day) && day >= 0 && day <= 6,
+  );
+  const isOneBased = normalized.every(
+    (day) => Number.isInteger(day) && day >= 1 && day <= 7,
+  );
+
+  if (!isZeroBased && !isOneBased) {
+    return value;
+  }
+
+  const normalizedToZeroBased = isOneBased
+    ? normalized.map((day) => day % 7)
+    : normalized;
+
+  return [...new Set(normalizedToZeroBased)].sort((a, b) => a - b);
 };
 
 const departmentSchema = new mongoose.Schema(
@@ -96,7 +108,8 @@ const departmentSchema = new mongoose.Schema(
       min: 0,
     },
 
-    // 0=Yakshanba ... 6=Shanba
+    // Ichkarida 0=Yakshanba ... 6=Shanba saqlanadi.
+    // API esa 0..6 yoki 1..7 formatini qabul qiladi.
     workDays: {
       type: [Number],
       default: [1, 2, 3, 4, 5, 6],
@@ -106,7 +119,7 @@ const departmentSchema = new mongoose.Schema(
           if (!Array.isArray(arr) || arr.length === 0) return false;
           return arr.every((d) => Number.isInteger(d) && d >= 0 && d <= 6);
         },
-        message: "workDays 0..6 oralig'idagi kunlardan iborat bo'lishi kerak",
+        message: "workDays 0..6 yoki 1..7 formatida bo'lishi kerak",
       },
     },
 

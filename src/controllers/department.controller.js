@@ -25,13 +25,23 @@ const normalizeWorkDays = (value) => {
       : [value];
 
   const normalized = values.map((day) => Number(day));
-  const isValid =
-    normalized.length > 0 &&
-    normalized.every((day) => Number.isInteger(day) && day >= 0 && day <= 6);
 
-  if (!isValid) return null;
+  if (normalized.length === 0) return null;
 
-  return [...new Set(normalized)].sort((a, b) => a - b);
+  const isZeroBased = normalized.every(
+    (day) => Number.isInteger(day) && day >= 0 && day <= 6,
+  );
+  const isOneBased = normalized.every(
+    (day) => Number.isInteger(day) && day >= 1 && day <= 7,
+  );
+
+  if (!isZeroBased && !isOneBased) return null;
+
+  const normalizedToZeroBased = isOneBased
+    ? normalized.map((day) => day % 7)
+    : normalized;
+
+  return [...new Set(normalizedToZeroBased)].sort((a, b) => a - b);
 };
 
 exports.createDepartment = async (req, res) => {
@@ -127,7 +137,7 @@ exports.createDepartment = async (req, res) => {
     if (workDays !== undefined && normalizedWorkDays === null) {
       return res.status(400).json({
         success: false,
-        message: "workDays noto'g'ri. Misol: [0,1,2,3,4,5,6]",
+        message: "workDays noto'g'ri. Misol: [0,1,2,3,4,5,6] yoki [1,2,3,4,5,6,7]",
       });
     }
 
@@ -373,7 +383,7 @@ exports.updateDepartment = async (req, res) => {
     if (req.body.workDays !== undefined && normalizedWorkDays === null) {
       return res.status(400).json({
         success: false,
-        message: "workDays noto'g'ri. Misol: [0,1,2,3,4,5,6]",
+        message: "workDays noto'g'ri. Misol: [0,1,2,3,4,5,6] yoki [1,2,3,4,5,6,7]",
       });
     }
 
