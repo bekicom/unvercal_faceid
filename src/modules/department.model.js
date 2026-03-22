@@ -1,5 +1,26 @@
 const mongoose = require("mongoose");
 
+const normalizeWorkDays = (value) => {
+  if (value === undefined) return value;
+
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [value];
+
+  const normalized = values.map((day) => Number(day));
+
+  if (
+    normalized.length === 0 ||
+    normalized.some((day) => !Number.isInteger(day) || day < 0 || day > 6)
+  ) {
+    return value;
+  }
+
+  return [...new Set(normalized)].sort((a, b) => a - b);
+};
+
 const departmentSchema = new mongoose.Schema(
   {
     organizationId: {
@@ -79,6 +100,7 @@ const departmentSchema = new mongoose.Schema(
     workDays: {
       type: [Number],
       default: [1, 2, 3, 4, 5, 6],
+      set: normalizeWorkDays,
       validate: {
         validator: function (arr) {
           if (!Array.isArray(arr) || arr.length === 0) return false;

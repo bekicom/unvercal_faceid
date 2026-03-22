@@ -15,13 +15,19 @@ const normalizeNonNegativeNumber = (value) => {
   return Number.isNaN(num) || num < 0 ? null : num;
 };
 
-const normalizeWorkDays = (workDays) => {
-  if (!Array.isArray(workDays) || workDays.length === 0) return null;
+const normalizeWorkDays = (value) => {
+  if (value === undefined) return undefined;
 
-  const normalized = workDays.map((day) => Number(day));
-  const isValid = normalized.every(
-    (day) => Number.isInteger(day) && day >= 0 && day <= 6,
-  );
+  const values = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : [value];
+
+  const normalized = values.map((day) => Number(day));
+  const isValid =
+    normalized.length > 0 &&
+    normalized.every((day) => Number.isInteger(day) && day >= 0 && day <= 6);
 
   if (!isValid) return null;
 
@@ -116,14 +122,13 @@ exports.createDepartment = async (req, res) => {
       });
     }
 
-    if (workDays !== undefined) {
-      const normalizedWorkDays = normalizeWorkDays(workDays);
-      if (!normalizedWorkDays) {
-        return res.status(400).json({
-          success: false,
-          message: "workDays noto'g'ri. Misol: [1,2,3,4,5,6]",
-        });
-      }
+    const normalizedWorkDays = normalizeWorkDays(workDays);
+
+    if (workDays !== undefined && normalizedWorkDays === null) {
+      return res.status(400).json({
+        success: false,
+        message: "workDays noto'g'ri. Misol: [0,1,2,3,4,5,6]",
+      });
     }
 
     const department = await Department.create({
@@ -161,7 +166,7 @@ exports.createDepartment = async (req, res) => {
           : 0,
       defaultSalary:
         defaultSalary !== undefined ? normalizeNonNegativeNumber(defaultSalary) : 0,
-      workDays: workDays !== undefined ? normalizeWorkDays(workDays) : undefined,
+      workDays: normalizedWorkDays,
     });
 
     return res.status(201).json({
@@ -183,7 +188,6 @@ exports.createDepartment = async (req, res) => {
     });
   }
 };
-
 
 exports.getDepartments = async (req, res) => {
   try {
@@ -207,7 +211,6 @@ exports.getDepartments = async (req, res) => {
   }
 };
 
-
 exports.getAllDepartments = async (req, res) => {
   try {
     const query = { organizationId: req.organizationId };
@@ -230,7 +233,6 @@ exports.getAllDepartments = async (req, res) => {
   }
 };
 
-// 🔹 UPDATE DEPARTMENT
 const mongoose = require("mongoose");
 
 exports.updateDepartment = async (req, res) => {
@@ -261,7 +263,6 @@ exports.updateDepartment = async (req, res) => {
     ];
 
     const bodyKeys = Object.keys(req.body);
-
     const invalidField = bodyKeys.find((key) => !allowedFields.includes(key));
 
     if (invalidField) {
@@ -290,7 +291,6 @@ exports.updateDepartment = async (req, res) => {
       });
     }
 
-    // ⏰ Time format validation (HH:MM)
     const timeRegex = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
     if (req.body.checkInTime && !timeRegex.test(req.body.checkInTime)) {
@@ -368,34 +368,32 @@ exports.updateDepartment = async (req, res) => {
       });
     }
 
-    if (req.body.workDays !== undefined) {
-      const normalizedWorkDays = normalizeWorkDays(req.body.workDays);
-      if (!normalizedWorkDays) {
-        return res.status(400).json({
-          success: false,
-          message: "workDays noto'g'ri. Misol: [1,2,3,4,5,6]",
-        });
-      }
+    const normalizedWorkDays = normalizeWorkDays(req.body.workDays);
+
+    if (req.body.workDays !== undefined && normalizedWorkDays === null) {
+      return res.status(400).json({
+        success: false,
+        message: "workDays noto'g'ri. Misol: [0,1,2,3,4,5,6]",
+      });
     }
 
-    // Update qilish
     allowedFields.forEach((field) => {
       if (req.body[field] !== undefined) {
         department[field] =
-          field === "defaultSalary" ||
-          field === "lateAfterMinutes" ||
-          field === "earlyLeaveMinutes" ||
-          field === "latePenaltyPerMinute" ||
-          field === "earlyLeavePenaltyPerMinute" ||
-          field === "penaltyPerMinute"
-            ? normalizeNonNegativeNumber(req.body[field])
-            : field === "useLatePenalty" ||
-                field === "useEarlyLeavePenalty" ||
-                field === "useTimePenalty"
-              ? parseBoolean(req.body[field])
-              : field === "workDays"
-                ? normalizeWorkDays(req.body[field])
-            : req.body[field];
+          field === "workDays"
+            ? normalizedWorkDays
+            : field === "defaultSalary" ||
+                field === "lateAfterMinutes" ||
+                field === "earlyLeaveMinutes" ||
+                field === "latePenaltyPerMinute" ||
+                field === "earlyLeavePenaltyPerMinute" ||
+                field === "penaltyPerMinute"
+              ? normalizeNonNegativeNumber(req.body[field])
+              : field === "useLatePenalty" ||
+                  field === "useEarlyLeavePenalty" ||
+                  field === "useTimePenalty"
+                ? parseBoolean(req.body[field])
+                : req.body[field];
       }
     });
 
@@ -422,8 +420,6 @@ exports.updateDepartment = async (req, res) => {
   }
 };
 
-
-// 🔹 DELETE DEPARTMENT (Hard delete)
 exports.deleteDepartment = async (req, res) => {
   try {
     const { id } = req.params;
