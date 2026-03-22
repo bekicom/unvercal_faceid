@@ -44,6 +44,25 @@ const normalizeWorkDays = (value) => {
   return [...new Set(normalizedToZeroBased)].sort((a, b) => a - b);
 };
 
+const formatWorkDaysForApi = (workDays) => {
+  if (!Array.isArray(workDays)) return workDays;
+  return [...new Set(workDays.map((day) => (day === 0 ? 7 : day)))].sort(
+    (a, b) => a - b,
+  );
+};
+
+const serializeDepartment = (department) => {
+  if (!department) return department;
+
+  const serialized =
+    typeof department.toObject === "function" ? department.toObject() : department;
+
+  return {
+    ...serialized,
+    workDays: formatWorkDaysForApi(serialized.workDays),
+  };
+};
+
 exports.createDepartment = async (req, res) => {
   try {
     const {
@@ -181,7 +200,7 @@ exports.createDepartment = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      data: department,
+      data: serializeDepartment(department),
     });
   } catch (err) {
     if (err?.code === 11000) {
@@ -210,7 +229,7 @@ exports.getDepartments = async (req, res) => {
     res.json({
       success: true,
       count: departments.length,
-      data: departments,
+      data: departments.map(serializeDepartment),
     });
   } catch (err) {
     console.error(err);
@@ -232,7 +251,7 @@ exports.getAllDepartments = async (req, res) => {
     res.json({
       success: true,
       count: departments.length,
-      data: departments,
+      data: departments.map(serializeDepartment),
     });
   } catch (err) {
     console.error(err);
@@ -412,7 +431,7 @@ exports.updateDepartment = async (req, res) => {
     res.json({
       success: true,
       message: "Department yangilandi",
-      data: department,
+      data: serializeDepartment(department),
     });
   } catch (err) {
     if (err?.code === 11000) {
