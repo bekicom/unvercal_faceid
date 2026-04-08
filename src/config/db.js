@@ -4,6 +4,8 @@ const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGO_URI, {
       autoIndex: true, // development uchun true
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
     });
 
     console.log(`✅ MongoDB Connected: mazami`);

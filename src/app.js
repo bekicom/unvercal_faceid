@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const mongoose = require("mongoose");
 const routes = require("./router/router");
 
 const app = express();
@@ -16,7 +17,17 @@ if (process.env.NODE_ENV !== "production") {
 }
 
 /* ROUTES */
-app.use("/api", routes); // 🔥 SHU YERGA KO‘CHIRDIK
+app.use("/api", (req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    return res.status(503).json({
+      success: false,
+      message: "Database not connected yet",
+    });
+  }
+
+  next();
+});
+app.use("/api", routes);
 
 /* HEALTH CHECK */
 app.get("/", (req, res) => {
