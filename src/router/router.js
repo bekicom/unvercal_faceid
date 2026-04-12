@@ -142,6 +142,7 @@ router.delete(
 );
 router.post(
   "/hikvision/event/:organizationId",
+  textBodyParser,
   upload.any(),
   hikvisionController.deviceEvent,
 );

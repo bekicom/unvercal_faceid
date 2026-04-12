@@ -148,8 +148,9 @@ const extractEventPayload = (req) => {
     const dateTime =
       extractXmlField(rawText, ["dateTime", "DateTime"]) ||
       new Date().toISOString();
+    const eventType = extractXmlField(rawText, ["eventType", "EventType"]);
 
-    return { employeeNo, employeeName, dateTime, rawText, data: null };
+    return { employeeNo, employeeName, dateTime, eventType, rawText, data: null };
   }
 
   if (!data) {
@@ -157,6 +158,7 @@ const extractEventPayload = (req) => {
       employeeNo: null,
       employeeName: null,
       dateTime: null,
+      eventType: null,
       rawText: null,
       data: null,
     };
@@ -181,13 +183,16 @@ const extractEventPayload = (req) => {
 
   const dateTime =
     findField(data, ["dateTime", "DateTime"]) || new Date().toISOString();
+  const eventType = pickFirstValue(data, ["eventType", "EventType"]);
 
-  return { employeeNo, employeeName, dateTime, rawText, data };
+  return { employeeNo, employeeName, dateTime, eventType, rawText, data };
 };
 
 const resolveOrganizationId = (req) => {
   if (req.role === "SUPER_ADMIN") {
-    return req.body.organizationId || req.query.organizationId || null;
+    const candidate = req.body.organizationId || req.query.organizationId || null;
+    if (!candidate) return null;
+    return mongoose.Types.ObjectId.isValid(candidate) ? candidate : null;
   }
   return req.organizationId || null;
 };
@@ -440,23 +445,14 @@ exports.getGateDevices = async (req, res) => {
 exports.deviceEvent = async (req, res) => {
   try {
     const { key } = req.params;
-    const { employeeNo, employeeName, dateTime, rawText, data } =
+    const { employeeNo, employeeName, dateTime, eventType } =
       extractEventPayload(req);
 
-    if ((!employeeNo && !employeeName) || !dateTime || !key) {
-      console.log("⚠️ Device event skipped:", {
-        key,
-        contentType: req.headers["content-type"] || null,
-        bodyType: typeof req.body,
-        bodyKeys:
-          req.body && typeof req.body === "object" ? Object.keys(req.body) : [],
-        filesCount: Array.isArray(req.files) ? req.files.length : 0,
-        candidateEmployeeNo: employeeNo,
-        candidateEmployeeName: employeeName,
-        parsedTopLevelKeys: data && typeof data === "object" ? Object.keys(data) : [],
-        rawPreview: rawText ? rawText.slice(0, 300) : null,
-      });
+    if (String(eventType || "").toLowerCase() === "heartbeat") {
+      return res.status(200).send("OK");
+    }
 
+    if ((!employeeNo && !employeeName) || !dateTime || !key) {
       return res.status(200).send("OK");
     }
 
@@ -496,12 +492,6 @@ exports.deviceEvent = async (req, res) => {
     }
 
     if (!employee) {
-      console.log("❌ Employee topilmadi:", {
-        employeeNo,
-        employeeName,
-        organizationId: String(organizationId),
-      });
-
       return res.status(200).send("OK");
     }
 
@@ -552,8 +542,6 @@ exports.deviceEvent = async (req, res) => {
         totalHours: 0,
       });
 
-      console.log(`✅ ${employee.fullName} → IN`);
-
       return res.status(200).json({
         success: true,
         message: "Check-in yozildi",
@@ -565,7 +553,6 @@ exports.deviceEvent = async (req, res) => {
     const diff = (eventTime - lastMarkTime) / 1000;
 
     if (diff < MIN_RESCAN_SECONDS) {
-      console.log("⚠️ Double scan ignored");
       return res.status(200).json({
         success: true,
         message: "Double scan ignored",
@@ -601,8 +588,6 @@ exports.deviceEvent = async (req, res) => {
       closeAttendanceSession(attendance, eventTime);
       await attendance.save();
 
-      console.log(`🚪 ${employee.fullName} → OUT`);
-
       return res.status(200).json({
         success: true,
         message: "Check-out yozildi",
@@ -626,11 +611,6 @@ exports.deviceEvent = async (req, res) => {
     return res.status(200).json({
       success: true,
       message: "Qayta kirish yozildi",
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Allaqachon chiqib ketgan",
     });
   } catch (error) {
     console.error("Device Event Error:", error);

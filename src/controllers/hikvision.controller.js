@@ -44,31 +44,99 @@ const findField = (obj, fieldNames) => {
   return null;
 };
 
+const extractXmlField = (xml, fieldNames) => {
+  if (!xml || typeof xml !== "string") return null;
+
+  for (const field of fieldNames) {
+    const regex = new RegExp(
+      `<(?:\\w+:)?${field}[^>]*>([^<]+)</(?:\\w+:)?${field}>`,
+      "i",
+    );
+    const match = xml.match(regex);
+    if (match && match[1]) {
+      return String(match[1]).trim();
+    }
+  }
+
+  return null;
+};
+
+const parseTextPayload = (raw) => {
+  if (!raw || typeof raw !== "string") return null;
+
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {}
+
+  const employeeNo =
+    extractXmlField(trimmed, ["employeeNoString"]) ||
+    extractXmlField(trimmed, ["employeeNo", "EmployeeNo", "cardNo", "CardNo"]);
+  const dateTime = extractXmlField(trimmed, ["dateTime", "DateTime"]);
+  const eventType = extractXmlField(trimmed, ["eventType", "EventType"]);
+
+  if (!employeeNo && !dateTime && !eventType) {
+    return null;
+  }
+
+  return {
+    employeeNoString: employeeNo,
+    dateTime,
+    eventType,
+  };
+};
+
+const parseDevicePayload = (req) => {
+  let data = null;
+
+  // 1) Multipart payload (Hikvision)
+  if (req.files && req.files.length > 0) {
+    for (const file of req.files) {
+      const raw = file?.buffer?.toString?.();
+      if (!raw) continue;
+
+      const parsed = parseTextPayload(raw);
+      if (parsed) {
+        data = parsed;
+        break;
+      }
+    }
+  }
+
+  // 2) Raw text / XML / JSON string
+  if (!data && typeof req.body === "string") {
+    data = parseTextPayload(req.body);
+  }
+
+  // 3) JSON object
+  if (
+    !data &&
+    req.body &&
+    typeof req.body === "object" &&
+    Object.keys(req.body).length > 0
+  ) {
+    const firstKey = Object.keys(req.body)[0];
+    const firstValue = req.body[firstKey];
+
+    if (typeof firstValue === "string") {
+      data = parseTextPayload(firstValue);
+    }
+
+    if (!data) {
+      data = req.body;
+    }
+  }
+
+  return data;
+};
+
 exports.deviceEvent = async (req, res) => {
   try {
     const { organizationId } = req.params;
 
-    let data = null;
-
-    // 1️⃣ Multipart JSON (Hikvision)
-    if (req.files && req.files.length > 0) {
-      for (const file of req.files) {
-        try {
-          data = JSON.parse(file.buffer.toString());
-          break;
-        } catch {}
-      }
-    }
-
-    // 2️⃣ Oddiy JSON
-    if (!data && req.body && Object.keys(req.body).length > 0) {
-      try {
-        const firstKey = Object.keys(req.body)[0];
-        data = JSON.parse(req.body[firstKey]);
-      } catch {
-        data = req.body;
-      }
-    }
+    const data = parseDevicePayload(req);
 
     if (!data) return res.status(200).send("OK");
 
